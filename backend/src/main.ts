@@ -12,7 +12,7 @@ async function bootstrap() {
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   app.enableCors();
-  app.setGlobalPrefix('api');
+  // app.setGlobalPrefix('api'); // Comentado para compatibilidad con Vercel Services
   
   // Interceptor de errores global (Audit-Ready)
   const httpAdapterHost = app.get(HttpAdapterHost);

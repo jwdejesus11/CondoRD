@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
 
 export async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
   const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
