@@ -1,0 +1,48 @@
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: condord_user
+      POSTGRES_PASSWORD: condord_password
+      POSTGRES_DB: condord_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npx prisma db seed && npm run start:debug"
+    restart: always
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      DATABASE_URL: "postgresql://condord_user:condord_password@db:5432/condord_db?schema=public"
+      JWT_SECRET: "condord_super_secret_key_12345"
+      PORT: 4000
+    ports:
+      - "4000:4000"
+      - "9229:9229"
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    command: npm run dev
+    restart: always
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://127.0.0.1:4000/api"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

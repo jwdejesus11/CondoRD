@@ -1,0 +1,462 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  CONDO_ADMIN
+  OWNER
+  TENANT
+  SECURITY
+  EMPLOYEE
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  VERIFYING
+  APPROVED
+  REJECTED
+}
+
+enum CaseStatus {
+  OPEN
+  IN_PROGRESS
+  ON_HOLD
+  RESOLVED
+  CLOSED
+}
+
+enum VisitStatus {
+  EXPECTED
+  CHECKED_IN
+  CHECKED_OUT
+  DENIED
+  CANCELLED
+}
+
+enum LostFoundStatus {
+  REPORTED
+  FOUND
+  CLAIMED
+  CLOSED
+}
+
+enum UnitStatus {
+  DISPONIBLE
+  OCUPADO
+  MANTENIMIENTO
+  BLOQUEADO
+}
+
+model Condo {
+  id                String   @id @default(uuid())
+  nombre            String
+  rnc               String?
+  ncfPrefix         String?  @default("B01") @map("ncf_prefix")
+  direccion         String?
+  logoUrl           String?  @map("logo_url")
+  primaryColor      String?  @default("#1a365d") @map("primary_color")
+  secondaryColor    String?  @default("#2b6cb0") @map("secondary_color")
+  tasaMora          Decimal  @default(0.0) @map("tasa_mora")
+  diaCorte          Int      @default(1) @map("dia_corte")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  units             Unit[]
+  users             UserCondo[]
+  ncfSequences      NcfSequence[]
+  budgets           Budget[]
+  expenses          Expense[]
+  accountsPayable   AccountPayable[]
+  announcements     Announcement[]
+  commonAreas       CommonArea[]
+  employees         Employee[]
+  documents         Document[]
+  lostFoundItems    LostFoundItem[]
+
+  @@map("condos")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  nombre    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  condos          UserCondo[]
+  notifications   Notification[]
+  residentProfile ResidentProfile?
+
+  @@map("users")
+}
+
+model UserCondo {
+  id       String    @id @default(uuid())
+  userId   String    @map("user_id")
+  condoId  String    @map("condo_id")
+  role     AdminRole @default(OWNER)
+
+  user     User      @relation(fields: [userId], references: [id])
+  condo    Condo     @relation(fields: [condoId], references: [id])
+
+  @@unique([userId, condoId])
+  @@map("user_condos")
+}
+
+model Unit {
+  id                String   @id @default(uuid())
+  condoId           String   @map("condo_id")
+  numero            String
+  tipo              String   @default("APARTAMENTO")
+  metrosCuadrados   Decimal? @map("metros_cuadrados")
+  cuotaMantenimiento Decimal  @map("cuota_mantenimiento")
+  status            UnitStatus @default(DISPONIBLE)
+  piso              Int?
+  area              String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  condo             Condo             @relation(fields: [condoId], references: [id])
+  invoices          Invoice[]
+  residents         ResidentProfile[]
+  cases             Case[]
+  visits            Visit[]
+
+  @@map("units")
+}
+
+model ResidentProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  unitId    String   @map("unit_id")
+  esDueno   Boolean  @default(false) @map("es_dueno")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+  unit Unit @relation(fields: [unitId], references: [id])
+
+  @@map("resident_profiles")
+}
+
+model Invoice {
+  id               String        @id @default(uuid())
+  unitId           String        @map("unit_id")
+  ncf              String?
+  periodo          String        // Formato "YYYY-MM"
+  fechaEmision     DateTime      @default(now()) @map("fecha_emision")
+  fechaVencimiento DateTime      @map("fecha_vencimiento")
+  subtotal         Decimal
+  itbis            Decimal       @default(0)
+  mora             Decimal       @default(0)
+  total            Decimal
+  balance          Decimal       @default(0) // Control exacto del saldo restante
+  estado           InvoiceStatus @default(PENDING) // PENDING, PARTIAL, PAID, CANCELLED
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  unit     Unit      @relation(fields: [unitId], references: [id])
+  payments Payment[]
+  charges  Charge[]
+
+  @@unique([unitId, periodo])
+  @@map("invoices")
+}
+
+model Charge {
+  id          String   @id @default(uuid())
+  invoiceId   String   @map("invoice_id")
+  descripcion String
+  monto       Decimal
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@map("charges")
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  invoiceId      String        @map("invoice_id")
+  monto          Decimal
+  fechaPago      DateTime      @default(now()) @map("fecha_pago")
+  metodoPago     String        @map("metodo_pago")
+  comprobanteUrl String?       @map("comprobante_url")
+  status         PaymentStatus @default(VERIFYING)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@map("payments")
+}
+
+model Budget {
+  id          String   @id @default(uuid())
+  condoId     String   @map("condo_id")
+  anio        Int
+  montoTotal  Decimal  @map("monto_total")
+  descripcion String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  condo Condo @relation(fields: [condoId], references: [id])
+
+  @@map("budgets")
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  condoId     String   @map("condo_id")
+  monto       Decimal
+  descripcion String
+  categoria   String?
+  fecha       DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  condo Condo @relation(fields: [condoId], references: [id])
+
+  @@map("expenses")
+}
+
+model AccountPayable {
+  id             String   @id @default(uuid())
+  condoId        String   @map("condo_id")
+  proveedor      String
+  monto          Decimal
+  fechaLimite    DateTime @map("fecha_limite")
+  estado         String   @default("PENDIENTE") // PENDIENTE, PAGADO
+  periodo        String?  // Formato YYYY-MM para control de duplicados (nómina/recurrentes)
+  referenciaId   String?  @map("referencia_id") // ID del empleado o contrato
+  tipo           String?  @default("GENERAL") // NOMINA, SERVICIO, etc.
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  condo Condo @relation(fields: [condoId], references: [id])
+
+  // Fuerte idempotencia para cuentas por pagar recurrentes:
+  // Previene que se genere doble cuota para el mismo empleado/proveedor en el mismo periodo
+  // Se omite condoId para estandarizar otros proveedores y gastos no dependientes directos.
+  @@unique([referenciaId, periodo, tipo])
+  @@map("accounts_payable")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  titulo    String
+  mensaje   String
+  visto     Boolean  @default(false)
+  tipo      String?  // GASTO, PAGO, RESERVA, etc
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  condoId   String   @map("condo_id")
+  nombre    String
+  categoria String
+  url       String
+  roleMin   AdminRole @default(OWNER) @map("role_min")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  condo Condo @relation(fields: [condoId], references: [id])
+
+  @@map("documents")
+}
+
+model Employee {
+  id        String   @id @default(uuid())
+  condoId   String   @map("condo_id")
+  nombre    String
+  cargo     String
+  salario   Decimal
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  condo     Condo      @relation(fields: [condoId], references: [id])
+  payrollItems PayrollItem[]
+  schedules EmployeeSchedule[]
+
+  @@map("employees")
+}
+
+model Payroll {
+  id        String   @id @default(uuid())
+  periodo   String
+  fechaPago DateTime @map("fecha_pago")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  items PayrollItem[]
+
+  @@map("payrolls")
+}
+
+model PayrollItem {
+  id          String   @id @default(uuid())
+  payrollId   String   @map("payroll_id")
+  employeeId  String   @map("employee_id")
+  montoBruto  Decimal  @map("monto_bruto")
+  deducciones Decimal  @default(0)
+  montoNeto   Decimal  @map("monto_neto")
+
+  payroll  Payroll  @relation(fields: [payrollId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("payroll_items")
+}
+
+model Case {
+  id          String     @id @default(uuid())
+  unitId      String     @map("unit_id")
+  titulo      String
+  descripcion String
+  prioridad   String     @default("MEDIA")
+  estado      CaseStatus @default(OPEN)
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  unit     Unit          @relation(fields: [unitId], references: [id])
+  comments CaseComment[]
+
+  @@map("cases")
+}
+
+model CaseComment {
+  id        String   @id @default(uuid())
+  caseId    String   @map("case_id")
+  userId    String   @map("user_id")
+  comentario String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  case Case @relation(fields: [caseId], references: [id])
+
+  @@map("case_comments")
+}
+
+model Announcement {
+  id        String   @id @default(uuid())
+  condoId   String   @map("condo_id")
+  titulo    String
+  contenido String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  condo Condo @relation(fields: [condoId], references: [id])
+
+  @@map("announcements")
+}
+
+model CommonArea {
+  id          String   @id @default(uuid())
+  condoId     String   @map("condo_id")
+  nombre      String
+  descripcion String?
+  capacidad   Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  condo        Condo         @relation(fields: [condoId], references: [id])
+  reservations Reservation[]
+
+  @@map("common_areas")
+}
+
+model Reservation {
+  id           String   @id @default(uuid())
+  commonAreaId String   @map("common_area_id")
+  userId       String   @map("user_id")
+  fecha        DateTime
+  horaInicio   String   @map("hora_inicio")
+  horaFin      String   @map("hora_fin")
+  estado       String   @default("PENDIENTE") // PENDIENTE, APROBADA, RECHAZADA
+
+  area CommonArea @relation(fields: [commonAreaId], references: [id])
+
+  @@map("reservations")
+}
+
+model Visit {
+  id             String      @id @default(uuid())
+  unitId         String      @map("unit_id")
+  visitorId      String?     @map("visitor_id")
+  nombreVisita   String      @map("nombre_visita") // Fallback / nombre preliminar
+  cedulaVisita   String?     @map("cedula_visita") // Para pre-registro opcional
+  motivo         String?
+  fechaEstimada  DateTime?   @map("fecha_estimada")
+  fechaIngreso   DateTime?   @map("fecha_ingreso")
+  fechaSalida    DateTime?   @map("fecha_salida")
+  estado         VisitStatus @default(EXPECTED)
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  unit    Unit     @relation(fields: [unitId], references: [id])
+  visitor Visitor? @relation(fields: [visitorId], references: [id])
+
+  @@map("visits")
+}
+
+model Visitor {
+  id               String   @id @default(uuid())
+  cedula           String   @unique
+  nombreCompleto   String   @map("nombre_completo")
+  fechaNacimiento  DateTime? @map("fecha_nacimiento")
+  sexo             String?
+  nacionalidad     String?
+  fotosUrl         String?  @map("fotos_url")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  visits           Visit[]
+
+  @@map("visitors")
+}
+
+model LostFoundItem {
+  id          String          @id @default(uuid())
+  condoId     String          @map("condo_id")
+  descripcion String
+  lugar       String?
+  fotosUrl    String?         @map("fotos_url")
+  fecha       DateTime        @default(now())
+  estado      LostFoundStatus @default(REPORTED)
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  condo Condo @relation(fields: [condoId], references: [id])
+
+  @@map("lost_found_items")
+}
+
+model EmployeeSchedule {
+  id         String   @id @default(uuid())
+  employeeId String   @map("employee_id")
+  diaSemana  Int      @map("dia_semana") // 0-6
+  horaInicio String   @map("hora_inicio")
+  horaFin    String   @map("hora_fin")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("employee_schedules")
+}
+
+model NcfSequence {
+  id      String @id @default(uuid())
+  condoId String @map("condo_id")
+  tipo    String
+  prefijo String @default("B01")
+  ultimo  Int    @default(0)
+  limite  Int
+
+  condo Condo @relation(fields: [condoId], references: [id])
+
+  @@unique([condoId, tipo])
+  @@map("ncf_sequences")
+}
