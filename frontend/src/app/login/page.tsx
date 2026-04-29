@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Lock, Mail, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { fetchWithAuth } from "@/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("admin@condord.com");
@@ -17,15 +18,11 @@ export default function LoginPage() {
     setError("");
     
     try {
-      const res = await fetch("http://127.0.0.1:4000/api/auth/login", {
+      const data = await fetchWithAuth("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
-      if (!res.ok) throw new Error("Credenciales inválidas");
-
-      const data = await res.json();
       
       // Guardar sesión
       localStorage.setItem("token", data.access_token);
