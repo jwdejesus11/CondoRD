@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "UnitStatus" AS ENUM ('DISPONIBLE', 'OCUPADO', 'MANTENIMIENTO', 'BLOQUEADO');
+
+-- AlterTable
+ALTER TABLE "units" ADD COLUMN     "status" "UnitStatus" NOT NULL DEFAULT 'DISPONIBLE';

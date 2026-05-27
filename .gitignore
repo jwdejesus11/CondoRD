@@ -25,4 +25,5 @@ Thumbs.db
 .idea/
 
 # Prisma
-backend/prisma/migrations/
+
+.vercel

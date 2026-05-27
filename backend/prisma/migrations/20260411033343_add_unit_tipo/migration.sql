@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "units" ADD COLUMN     "tipo" TEXT NOT NULL DEFAULT 'APARTAMENTO';
